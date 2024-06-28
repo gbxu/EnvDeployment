@@ -8,10 +8,11 @@ if [ -f $NOWIPADDR ]; then
   else
     echo $GETIPADDR > $NOWIPADDR
     echo "ip is changed. Notification is sent. curr ip $GETIPADDR"
-    echo $GETIPADDR | mail -s "Server IP" xugb@mail.ustc.edu.cn
+    echo $GETIPADDR
   fi
 else
   echo $GETIPADDR > $NOWIPADDR
   echo "ip is set now. Notification is sent. curr ip $GETIPADDR"
-  echo $GETIPADDR | mail -s "Server IP" xugb@mail.ustc.edu.cn
+  echo $GETIPADDR
 fi
+
