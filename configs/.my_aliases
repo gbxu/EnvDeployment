@@ -1,0 +1,81 @@
+function dockerrun() {
+    device_list=$(ls /dev/infiniband/)
+    device_params=""
+    for device in $device_list; do
+        device_path="/dev/infiniband/$device"
+        device_params+="--device $device_path "
+    done
+
+    if [ -d "/tmp/.X11-unix" ] && [ -f "${HOME}/.Xauthority" ]; then
+        X11Files="-v /tmp/.X11-unix:/tmp/.X11-unix  -v ${HOME}/.Xauthority:/root/.Xauthority "
+    else
+        X11Files=""
+    fi
+
+    if [ -z "${MY_ENV_DEPLOYMENT}" ]; then
+        DeploymentFiles=""
+    else
+        DeploymentFiles="-v ${MY_ENV_DEPLOYMENT}/:${MY_ENV_DEPLOYMENT}"
+    fi
+
+    docker_run_command="docker run \
+        --privileged \
+        --cap-add=SYS_ADMIN \
+        --cap-add=IPC_LOCK \
+        --cap-add=sys_ptrace \
+        --ipc=host --net=host $device_params \
+        --shm-size=16g \
+        --ulimit memlock=-1 \
+        --ulimit stack=67108864 \
+        -it \
+        -e DISPLAY=$DISPLAY ${X11Files} ${DeploymentFiles} \
+        --runtime=nvidia \
+        -e NVIDIA_VISIBLE_DEVICES=all \
+        --rm --name=${USER}_instance \
+        \"$1\" /bin/bash"
+
+    echo "Running command: $docker_run_command"
+    eval $docker_run_command
+}
+
+function dockerin() {
+    docker exec -it ${USER}_instance /bin/bash
+}
+
+function dockerssh() {
+    docker exec -it ${USER}_instance /bin/bash -c "/EnvDeployment/ubuntu/install_ssh.sh"
+}
+
+function vscode_in_tmux() {
+    local vscode_ipc=$(set | grep VSCODE_IPC_HOOK_CLI= | cut -d'=' -f2)
+    local mycode=code
+    if [ -z "$t" ]; then
+        echo "VSCODE_IPC_HOOK_CLI is not set. You may in a VS Code terminal."
+        vscode_ipc=`ls -t1 /run/user/$UID/vscode-ipc-*.sock | head -n 1`
+        echo "Get VSCODE_IPC_HOOK_CLI=${vscode_ipc} from /run/user/${UID}"
+        echo "Applying to all sessions..."
+        export VSCODE_IPC_HOOK_CLI=$vscode_ipc
+        local cmd="export VSCODE_IPC_HOOK_CLI=$vscode_ipc"
+        for SESSION_NAME in $(tmux list-sessions -F '#{session_name}'); do
+            execute_command_in_session "$SESSION_NAME" "$cmd"
+        done
+        mycode=${HOME}/.vscode-server/bin/$(ls -t1 ${HOME}/.vscode-server/bin/ | head -n 1)/bin/remote-cli/code
+    fi
+    $mycode $1
+}
+
+function execute_command_in_session() {
+    local SESSION_NAME=$1
+    local cmd=$2
+    # 迭代所有属于该 session 的 window
+    tmux list-windows -t $SESSION_NAME -F '#{window_id}' | while read WINDOW_ID; do
+        # 迭代每个 window 中的所有 pane
+        tmux list-panes -t $WINDOW_ID -F '#{pane_id}' | while read PANE_ID; do
+            # 在每个 pane 中执行命令
+            # echo "Executing command in session $SESSION_NAME, window $WINDOW_ID, pane $PANE_ID"
+            tmux send-keys -t $PANE_ID "$cmd" C-m
+        done
+    done
+}
+
+alias open='vscode_in_tmux'

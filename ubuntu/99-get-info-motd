@@ -1,0 +1,437 @@
+#!/bin/bash
+if [[ "$(whoami)" != "root" ]]; then
+    SUDO=sudo
+fi
+THIS_FILE=$(basename "$0")
+THIS_PATH=$(readlink -f "$0")
+THIS_DIR=$(dirname "$THIS_PATH")
+W="\e[0;39m" # background
+G="\e[1;32m" # highlight
+
+function checkCommandAnyExist() {
+    commands=$@
+    while (( "$#" )); do
+        command -v $1 >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
+        shift
+    done
+    echo 
+    echo "None of the provided commands are available, please install one of them: $commands"
+    echo
+}
+
+function getCpuInfo() {
+    checkCommandAnyExist lscpu
+    PROCESSOR_NAME=`grep "model name" /proc/cpuinfo | cut -d ' ' -f3- | awk {'print $0'} | head -1`
+    PROCESSOR_COUNT=`grep -ioP 'processor\t:' /proc/cpuinfo | wc -l`
+    echo -e $G"CPU status:"$W
+    echo -e $PROCESSOR_NAME ${G}$PROCESSOR_COUNT${W} "vCPU"
+
+    checkCommandAnyExist lspci
+    echo -e $G"PCIe devices:"$W
+    if command -v lspci >/dev/null 2>&1; then
+        lspci | egrep -i 'vga|network|ethernet|Infiniband|NVIDIA'
+    fi
+}
+
+function getNetInfo() {
+    checkCommandAnyExist ip ifconfig
+    # 获取网卡名称和 IP 地址
+    echo -e $G"NIC status:"$W
+    if command -v ip >/dev/null 2>&1; then
+        ip -br addr
+    elif command -v ifconfig >/dev/null 2>&1; then
+        ifconfig | grep -B1 "inet addr" | awk '{ if ( $1 == "inet" ) { print $2 } else if ( $2 == "Link" ) { printf "%s:" ,$1 } }' | awk -F: '{ print $1 ": " $3 }'
+    fi
+
+    checkCommandAnyExist ethtool
+    if command -v ethtool >/dev/null 2>&1; then
+        # 获取网卡的带宽
+        for iface in $(ls /sys/class/net); do 
+            speed=$(ethtool $iface 2>/dev/null | grep -i speed)
+            if [ $? -eq 0 ]; then
+                echo "$iface: $speed"
+            fi
+        done
+    fi
+}
+
+function getGpuInfo() {
+    checkCommandAnyExist nvidia-smi
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        echo -e $G"GPU status:"$W
+        nvidia-smi topo -m | grep "GPU"
+    fi
+}
+function getDockerInstanceStatus() {
+    # set column width
+    COLUMNS=2
+    # colors
+    green="\e[1;32m"
+    red="\e[1;31m"
+    undim="\e[0m"
+
+    mapfile -t containers < <(docker ps -a --format '{{.Names}}\t{{.Status}}' | sort -k1 | awk '{ print $1,$2 }')
+
+    out=""
+    for i in "${!containers[@]}"; do
+        IFS=" " read name status <<< ${containers[i]}
+        # color green if service is active, else red
+        if [[ "${status}" == "Up" ]]; then
+            out+="${name}:,${green}${status,,}${undim},"
+        else
+            out+="${name}:,${red}${status,,}${undim},"
+        fi
+        # insert \n every $COLUMNS column
+        if [ $((($i+1) % $COLUMNS)) -eq 0 ]; then
+            out+="\n"
+        fi
+    done
+    out+="\n"
+
+    echo -e $G"Docker instance:"$W
+    printf "$out" | column -ts $',' | sed -e 's/^/  /'
+}
+
+function getServiceStatus() {
+    # set column width
+    COLUMNS=3
+    # colors
+    green="\e[1;32m"
+    red="\e[1;31m"
+    undim="\e[0m"
+
+    services=("fail2ban" "ufw" "docker" "netdata" "smartd" "opensmd" "openibd" "nvidia-fabricmanager" "nv_peer_mem" "sshd" "fail2ban")
+    # sort services
+    IFS=$'\n' services=($(sort <<<"${services[*]}"))
+    unset IFS
+
+    service_status=()
+    # get status of all services
+    for service in "${services[@]}"; do
+        service_status+=($(systemctl is-active "$service"))
+    done
+
+    out=""
+    for i in ${!services[@]}; do
+        # color green if service is active, else red
+        if [[ "${service_status[$i]}" == "active" ]]; then
+            out+="${services[$i]}:,${green}${service_status[$i]}${undim},"
+        else
+            out+="${services[$i]}:,${red}${service_status[$i]}${undim},"
+        fi
+        # insert \n every $COLUMNS column
+        if [ $((($i+1) % $COLUMNS)) -eq 0 ]; then
+            out+="\n"
+        fi
+    done
+    out+="\n"
+
+    printf "services:\n"
+    printf "$out" | column -ts $',' | sed -e 's/^/  /'
+}
+
+function getDiskStatus() {
+    # config
+    max_usage=90
+    bar_width=50
+    # colors
+    white="\e[39m"
+    green="\e[1;32m"
+    red="\e[1;31m"
+    dim="\e[2m"
+    undim="\e[0m"
+
+    # disk usage: ignore zfs, squashfs & tmpfs
+    mapfile -t dfs < <(df -H -x zfs -x squashfs -x tmpfs -x devtmpfs -x overlay --output=target,pcent,size | tail -n+2)
+    echo -e $G"Disk usage:"$W
+    for line in "${dfs[@]}"; do
+        # get disk usage
+        usage=$(echo "$line" | awk '{print $2}' | sed 's/%//')
+        used_width=$((($usage*$bar_width)/100))
+        # color is green if usage < max_usage, else red
+        if [ "${usage}" -ge "${max_usage}" ]; then
+            color=$red
+        else
+            color=$green
+        fi
+        # print green/red bar until used_width
+        bar="[${color}"
+        for ((i=0; i<$used_width; i++)); do
+            bar+="="
+        done
+        # print dimmmed bar until end
+        bar+="${white}${dim}"
+        for ((i=$used_width; i<$bar_width; i++)); do
+            bar+="="
+        done
+        bar+="${undim}]"
+        # print usage line & bar
+        echo "${line}" | awk '{ printf("%-31s%+3s used out of %+4s\n", $1, $2, $3); }' | sed -e 's/^/  /'
+        echo -e "${bar}" | sed -e 's/^/  /'
+    done
+}
+
+function getTmuxStatus() {
+    # 使用tmux list-sessions命令获取会话列表，然后使用wc -l计算行数
+    session_count=$(tmux ls 2>/dev/null | wc -l)
+    # 输出会话数量
+    echo -e "Tmux sessions: $G$session_count$W"
+}
+
+function getMemStatus() {
+    # config
+    max_usage=90
+    bar_width=50
+    # colors
+    white="\e[39m"
+    green="\e[1;32m"
+    red="\e[1;31m"
+    dim="\e[2m"
+    undim="\e[0m"
+
+    # get memory usage
+    mem=$(free -m | awk 'NR==2{printf "%.0f", $3*100/$2 }')
+
+    # color is green if usage < max_usage, else red
+    if [ "${mem}" -ge "${max_usage}" ]; then
+        color=$red
+    else
+        color=$green
+    fi
+
+    # print green/red bar until used_width
+    used_width=$((($mem*$bar_width)/100))
+    bar="[${color}"
+    for ((i=0; i<$used_width; i++)); do
+        bar+="="
+    done
+    # print dimmmed bar until end
+    bar+="${white}${dim}"
+    for ((i=$used_width; i<$bar_width; i++)); do
+        bar+="="
+    done
+    bar+="${undim}]"
+
+    IFS=" " read USED AVAIL TOTAL <<<$(free -htm | grep "Mem" | awk {'print $3,$7,$2'})
+    echo -e "Memory usage: $G$USED$W used, $G$AVAIL$W avail, $G$TOTAL$W total$W. $G$mem%$W used"
+    # print usage line & bar
+    echo -e "${bar}"
+}
+
+function getRealWorld() {
+    checkCommandAnyExist lsb_release
+    [ -r /etc/lsb-release ] && . /etc/lsb-release
+    if [ -z "$DISTRIB_DESCRIPTION" ] && [ -x /usr/bin/lsb_release ]; then
+        # Fall back to using the very slow lsb_release utility
+        DISTRIB_DESCRIPTION=$(lsb_release -s -d)
+    fi
+    checkCommandAnyExist uname
+    if command -v uname >/dev/null 2>&1; then
+        printf "Welcome to $G%s$W (%s %s $G%s$W)\n" "$DISTRIB_DESCRIPTION" "$(uname -o)" "$(uname -r)" "$(uname -m)"
+    fi
+    printf "You are logged in $G%s$W as $G%s$W\n" `hostname` `whoami`
+    echo -e "Current system time: " $G`date`$W
+    echo -e "Server public IP: $G"`curl -s ifconfig.me/ip`$W
+    echo `curl -s "wttr.in/hefei?format=3"`
+    echo "Your IP:" $(who -u am i | awk '{print $NF}' | tr -d '()')
+}
+function getStatus() {
+    echo
+    echo "--------------------------------------------------------------------------------"
+    getRealWorld
+    IFS=" " read LOAD1 LOAD5 LOAD15 <<<$(cat /proc/loadavg | awk '{ print $1,$2,$3 }')
+    echo -e "Uptime: $G$(uptime -p)$W; Load avg:" $G$LOAD1$W "1m," $G$LOAD5$W "5m," $G$LOAD15$W "15m"
+    echo -e "Current users: " $G`who | awk '{print $1}' | sort -u | tr '\n' ' '`$W
+    getTmuxStatus
+
+    [ -f /etc/default/locale ] && . /etc/default/locale
+    export LANG
+    cores=`grep -c ^processor /proc/cpuinfo 2>/dev/null`
+    [ "$cores" -eq "0" ] && cores=1
+    threshold="${cores:-1}.0"
+    loadavg=`cut -f1 -d ' ' /proc/loadavg`
+    loadavg_int=`echo $loadavg | awk '{printf "%d", $1}'`
+    threshold_int=`echo $threshold | awk '{printf "%d", $1}'`
+    if [ "$loadavg_int" -lt "$threshold_int" ]; then
+        if which /usr/bin/landscape-sysinfo >/dev/null 2>&1; then
+            echo "System load"
+            /usr/bin/landscape-sysinfo
+        else
+            echo
+            echo "landscape-common command is unavailable: ${SUDO} apt update && ${SUDO} apt install landscape-common -y"
+            echo
+        fi
+    else
+        echo
+        echo " System information disabled due to load higher than $threshold_int"
+    fi
+    getServiceStatus
+    # 获取docker使用情况
+    getDockerInstanceStatus
+    # 获取磁盘使用情况
+    getDiskStatus
+    # 获取内存使用情况
+    getMemStatus
+    # GPU使用情况
+    checkCommandAnyExist nvidia-smi
+    echo -e $G"GPU usage:"$W
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        nvidia-smi --query-gpu=name,power.draw,memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits | while IFS=',' read -r name power memused memtotal util
+        do
+            echo -e "${name} : ${power}W, $G${memused}MiB$W/${memtotal}MiB, $G${util}%$W"
+        done
+    fi
+}
+
+function getDetails() {
+    checkCommandAnyExist dmidecode
+    checkCommandAnyExist lscpu
+    checkCommandAnyExist lspci
+    checkCommandAnyExist nvidia-smi
+    checkCommandAnyExist ethtool
+
+    dmidecode -t processor
+    dmidecode -t memory
+    lscpu
+    lspci -vv
+    nvidia-smi topo -m
+    nvidia-smi
+    ethtool eth0
+    hostname
+    env
+}
+
+function getBenchmark() {
+    checkCommandAnyExist sysbench
+    if ! command -v sysbench >/dev/null 2>&1; then
+        ${SUDO} apt update > /dev/null && ${SUDO} apt install sysbench -y > /dev/null 
+    fi
+    # 测试 CPU 性能
+    echo "Testing CPU performance..."
+    sysbench --test=cpu --cpu-max-prime=20000 run
+ 
+    checkCommandAnyExist dd
+    if command -v dd >/dev/null 2>&1; then
+        # 测试磁盘 I/O 性能
+        echo "Testing disk I/O performance..."
+        dd if=/dev/zero of=/tmp/test1.img bs=1G count=1 oflag=dsync 2>&1
+
+        echo "Testing memory performance..."
+        # 测试内存写入性能
+        dd if=/dev/zero of=/dev/null bs=1M count=10240 2>&1
+        # 测试内存读取性能
+        dd if=/dev/zero of=/tmp/output bs=1M count=10240; sync; # echo 3 | sudo tee /proc/sys/vm/drop_caches
+        dd if=/tmp/output of=/dev/null bs=1M count=10240 2>&1
+    fi
+}
+
+function getCudaBenchmark() {
+    checkCommandAnyExist ping curl
+    if ! command -v ping >/dev/null 2>&1; then
+        ${SUDO} apt update > /dev/null && ${SUDO} apt install iputils-ping -y > /dev/null
+    fi
+    ping_time=$(ping -c 4 github.com | tail -1| awk '{print $4}' | cut -d '/' -f 2)
+
+    if command -v ping >/dev/null 2>&1; then
+        http_status=$(curl -I -s github.com | head -n 1 | awk '{print $2}')
+    else
+        http_status=200
+    fi
+
+    tempdir=$(mktemp -d /tmp/cuda-samples.XXXX)
+    if [ $(echo "$ping_time > 100" | bc) -eq 1 ] || [ "$http_status" == "200" ]; then
+        PROXY="https://gh-proxy.com/"
+        curl ${PROXY}https://github.com/NVIDIA/cuda-samples/archive/refs/tags/v12.0.zip -o ${tempdir}/cuda-samples-12.0.zip
+        ${SUDO} apt update > /dev/null && ${SUDO} apt install zip -y > /dev/null
+        unzip ${tempdir}/cuda-samples-12.0.zip -d ${tempdir} > /dev/null
+        tempdir=${tempdir}/cuda-samples-12.0
+    else
+        git clone --branch v12.0 --depth 1 https://github.com/NVIDIA/cuda-samples.git $tempdir
+    fi
+    sm=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -n 1 | tr -d '.')
+    # GENCODE_FLAGS="-gencode arch=compute_$sm,code=sm_$sm"
+
+    cd $tempdir/Samples/1_Utilities/deviceQuery && make -j SMS="${sm}"
+    $tempdir/Samples/1_Utilities/deviceQuery/deviceQuery
+    
+    cd $tempdir/Samples/5_Domain_Specific/p2pBandwidthLatencyTest && make -j SMS="${sm}"
+    echo "p2p_write+copy engine"
+    $tempdir/Samples/5_Domain_Specific/p2pBandwidthLatencyTest/p2pBandwidthLatencyTest
+    echo "p2p_read+copy engine"
+    $tempdir/Samples/5_Domain_Specific/p2pBandwidthLatencyTest/p2pBandwidthLatencyTest --p2p_read
+    echo "p2p_write+sm_copy"
+    $tempdir/Samples/5_Domain_Specific/p2pBandwidthLatencyTest/p2pBandwidthLatencyTest --sm_copy
+    echo "p2p_read+sm_copy"
+    $tempdir/Samples/5_Domain_Specific/p2pBandwidthLatencyTest/p2pBandwidthLatencyTest --p2p_read --sm_copy 
+
+    cd $tempdir/Samples/1_Utilities/bandwidthTest && make -j SMS="${sm}"
+    MODE="--mode=shmoo"
+    # MODE="--mode=range --start=1024  --end=134217728"
+    for direct in "--htod" "--dtoh" "--dtod"; do
+        $tempdir/Samples/1_Utilities/bandwidthTest/bandwidthTest --device=0 --memory=pinned ${direct} ${MODE}
+    done
+
+    cd $tempdir/Samples/4_CUDA_Libraries/batchCUBLAS && make -j SMS="${sm}"
+    gmem=`nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1`
+    gmem_bytes=`echo "scale=2; $gmem * 1024 * 1024 *1024 " | bc` # GB -> bytes
+    gmem_div_4=`echo "scale=2; $gmem_bytes / 4" | bc` # float32
+    for b in 1 2 4 8; do
+        gmem_div_batch=`echo "scale=2; $gmem_bytes / ${b}" | bc` # float32
+        gmem_div_3=`echo "scale=2; $gmem_div_batch / 3 " | bc` # 3 matrixs: m*k, k*n, m*n
+        gmem_sqrt=`echo "scale=2; sqrt($gmem_div_3)" | bc -l` # m=k=n
+        max_power_of_2=16
+        while [ $(echo "$max_power_of_2 * 2 <= $gmem_sqrt" | bc -l) -eq 1 ]; do
+            max_power_of_2=$((max_power_of_2 * 2))
+            i=$max_power_of_2
+            $tempdir/Samples/4_CUDA_Libraries/batchCUBLAS/batchCUBLAS -m$i -n$i -k$i -N$b
+        done
+    done
+    echo "Use cuda samples: ${tempdir}"
+}
+
+function getHelper() {
+    echo
+    echo -e $G"Note:"$W
+    echo "Check this file in: ${THIS_PATH}"
+    echo "Please use these commands to save the hardware info:"
+    echo "
+        bash ${THIS_FILE} install # to install some dependenies.
+        bash ${THIS_FILE} export # to save details.
+        bash ${THIS_FILE} benchmark # to simple benchmark test.
+        bash ${THIS_FILE} cudabenchmark # run bandwidthTest p2pBandwidthLatencyTest batchCUBLAS for CUDA GPU.
+        Move it as /etc/etc/update-motd.d/99-get-info-motd then 'chmod +x 99-get-info-motd' to get a daily reminder.
+        "
+}
+
+option=$1
+if [ "$option" = "install" ]; then
+    echo "exporting..."
+    ${SUDO} apt update > /dev/null
+    ${SUDO} apt install lsb-release pciutils ethtool iproute2 net-tools landscape-common dmidecode iputils-ping -y
+elif [ "$option" = "export" ]; then
+    echo "exporting..."
+    filename=$(mktemp info.XXXXXX.txt)
+    getCpuInfo >> $filename
+    getNetInfo >> $filename
+    getGpuInfo >> $filename
+    getStatus >> $filename
+    getDetails >> $filename
+    echo "saving $filename in `pwd`/$filename"
+elif [ "$option" = "benchmark" ]; then
+    filename=$(mktemp benchmark.XXXXXX.txt)
+    getBenchmark | tee $filename
+    echo "saving $filename in `pwd`/$filename"
+elif [ "$option" = "cudabenchmark" ]; then
+    filename=$(mktemp cudabenchmark.XXXXXX.txt)
+    getCudaBenchmark | tee $filename
+    echo "saving $filename in `pwd`/$filename"
+else
+    getCpuInfo
+    getNetInfo
+    getGpuInfo
+    getStatus
+    getHelper
+fi

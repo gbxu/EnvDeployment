@@ -1,0 +1,7 @@
+[user]
+	email = gb.xu@outlook.com
+	name = gbxu
+[http]
+	postBuffer = 524288000
+[core]
+	editor = vim
