@@ -1,0 +1,3 @@
+[submodule "privatedata"]
+	path = privatedata
+	url = git@github.com:gbxu/privatedata.git
