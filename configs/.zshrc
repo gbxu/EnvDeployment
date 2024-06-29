@@ -73,10 +73,9 @@ ZSH_THEME="agnoster"
 plugins=(
         command-not-found
         timer
-        zsh-navigation-tools
-        zsh-interactive-cd.plugin.zsh # install fzf
-        zsh-autosuggestions # clone
-        zsh-syntax-highlighting # must be last one
+        zsh-navigation-tools # n-cd等统计命令
+        zsh-autosuggestions # 自动补全
+        zsh-syntax-highlighting # must be last one 语法高亮
 )
 
 source $ZSH/oh-my-zsh.sh
@@ -110,3 +109,4 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 source ${MY_ENV_DEPLOYMENT}/configs/.my_aliases
+echo "zsh config .zshrc reloaded."

@@ -5,4 +5,4 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 
 ${SUDO} apt update
-${SUDO} apt install zip -y
+${SUDO} apt install zip pssh -y

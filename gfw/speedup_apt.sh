@@ -1,8 +1,14 @@
 #!/bin/bash
-
+THIS_PATH=$(readlink -f "$0")
+THIS_DIR=$(dirname "$THIS_PATH")
+MY_ENV_DEPLOYMENT=${THIS_DIR}/../../EnvDeployment
+source ${MY_ENV_DEPLOYMENT}/configs/.my_aliases
+echo "MY_ENV_DEPLOYMENT is located at: ${MY_ENV_DEPLOYMENT}"
 if [[ "$(whoami)" != "root" ]]; then
     SUDO=sudo
 fi
+export DEBIAN_FRONTEND=noninteractive
+ensure_command_installed ping inetutils-ping
 
 # 测量 mirrors.ustc.edu.cn 的平均延迟
 USTC_DELAY=$(ping -c 4 mirrors.ustc.edu.cn | tail -1| awk '{print $4}' | cut -d '/' -f 2)

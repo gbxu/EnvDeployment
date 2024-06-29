@@ -1,7 +1,14 @@
 #!/bin/bash
+THIS_PATH=$(readlink -f "$0")
+THIS_DIR=$(dirname "$THIS_PATH")
+MY_ENV_DEPLOYMENT=${THIS_DIR}/../../EnvDeployment
+source ${MY_ENV_DEPLOYMENT}/configs/.my_aliases
+echo "MY_ENV_DEPLOYMENT is located at: ${MY_ENV_DEPLOYMENT}"
 if [[ "$(whoami)" != "root" ]]; then
     SUDO=sudo
 fi
+export DEBIAN_FRONTEND=noninteractive
+
 
 # GitHub相关域名
 GITHUB_DOMAINS=(
@@ -12,12 +19,22 @@ GITHUB_DOMAINS=(
 
 # 备份/etc/hosts文件
 ${SUDO} cp /etc/hosts /etc/hosts.backup
-# 删除/etc/hosts中现有的GitHub域名条目
+temp_file=$(mktemp)
+# 将/etc/hosts的内容复制到临时文件中
+${SUDO} cp /etc/hosts "$temp_file"
 for domain in "${GITHUB_DOMAINS[@]}"; do
-    ${SUDO} sed -i "/$domain/d" /etc/hosts
+    # 使用sed命令在临时文件上就地编辑，移除匹配的域名
+    ${SUDO} sed -i "/${domain}/d" "$temp_file"
 done
+# 将修改后的临时文件内容复制回/etc/hosts
+${SUDO} cat "$temp_file" > /etc/hosts
+# 删除临时文件
+rm "$temp_file"
 
 # 查询并更新每个域名的IP地址
+ensure_command_installed dig dnsutils
+ensure_command_installed ping inetutils-ping
+ensure_command_installed bc bc
 for domain in "${GITHUB_DOMAINS[@]}"; do
     # 使用dig命令查询域名的所有IP地址
     ips=($(dig +short $domain))
@@ -51,10 +68,16 @@ elif [ "$OS" = "Linux" ]; then
     # 检查systemd-resolve是否可用（Ubuntu 16.04及更高版本）
     if command -v systemd-resolve &> /dev/null; then
         ${SUDO} systemd-resolve --flush-caches
+    elif command -v resolvconf &> /dev/null; then
+        # 对于一些使用resolvconf的系统
+        ${SUDO} resolvconf -u
+    elif command -v nmcli &> /dev/null; then
+        # 对于使用NetworkManager的系统
+        ${SUDO} nmcli general reload
     else
-        # 其他Linux系统可能需要重启网络服务
-        ${SUDO} /etc/init.d/networking restart
+        echo "No known method to flush DNS cache on this system."
     fi
 else
     echo "Unsupported OS: $OS"
-fiecho "GitHub hosts update complete."
+fi
+echo "GitHub hosts update complete."
