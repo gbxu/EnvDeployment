@@ -8,16 +8,17 @@ fi
 
 if [ -d "${HOME}/.ssh" ]; then
     echo "${HOME}/.ssh exists."
+    # 复制认证
     if [ -f "${HOME}/.ssh/authorized_keys" ]; then
         cat ${MY_ENV_DEPLOYMENT}/configs/.ssh/authorized_keys >> ${HOME}/.ssh/authorized_keys
     else
         cp ${MY_ENV_DEPLOYMENT}/configs/.ssh/authorized_keys ${HOME}/.ssh/
     fi
-
+    # 复制公钥
     if [ ! -f "${HOME}/.ssh/id_rsa.pub" ]; then
         cp ${MY_ENV_DEPLOYMENT}/configs/.ssh/id_rsa.pub ${HOME}/.ssh/
     fi
-
+    # 复制配置
     if [ ! -f "${HOME}/.ssh/config" ]; then
         cp ${MY_ENV_DEPLOYMENT}/configs/.ssh/config ${HOME}/.ssh/
     fi
