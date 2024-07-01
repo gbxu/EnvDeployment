@@ -24,6 +24,11 @@ function dockerrun() {
         DeploymentFiles="-v ${MY_ENV_DEPLOYMENT}/:${MY_ENV_DEPLOYMENT}"
     fi
 
+    if [ ! -z "$DISPLAY" ]; then
+        DockerDisplay="${DISPLAY/localhost/}"
+    else
+        DockerDisplay=""
+    fi
     docker_run_command="docker run \
         --privileged \
         --cap-add=SYS_ADMIN \
@@ -34,7 +39,7 @@ function dockerrun() {
         --ulimit memlock=-1 \
         --ulimit stack=67108864 \
         -it \
-        -e DISPLAY=$DISPLAY ${X11Files} ${DeploymentFiles} \
+        -e DISPLAY=${DockerDisplay} ${X11Files} ${DeploymentFiles} \
         --runtime=nvidia \
         -e NVIDIA_VISIBLE_DEVICES=all \
         --rm --name=${USER}_instance \
