@@ -234,9 +234,14 @@ function getRealWorld() {
     fi
     printf "You are logged in $G%s$W as $G%s$W\n" `hostname` `whoami`
     echo -e "Current system time: " $G`date`$W
-    echo -e "Server public IP: $G"`curl -s ifconfig.me/ip`$W
-    echo `curl -s "wttr.in/hefei?format=3"`
-    echo "Your IP:" $(who -u am i | awk '{print $NF}' | tr -d '()')
+    server_ip=$(curl -s ifconfig.me/ip)
+    server_location=$(curl -s "http://ip-api.com/json/${server_ip}?fields=country,regionName,city")
+    server_city=$(echo $server_location | grep -o '"city":"[^"]*' | cut -d'"' -f4)
+    echo -e "Server public IP: "$G${server_ip}$W, at `curl -s "wttr.in/${server_city}?format=3"`
+    client_ip=$(who -u am i | awk '{print $NF}' | tr -d '()')
+    client_location=$(curl -s "http://ip-api.com/json/${client_ip}?fields=country,regionName,city")
+    client_city=$(echo $client_location | grep -o '"city":"[^"]*' | cut -d'"' -f4)
+    echo -e "Your public IP: "$G${client_ip}$W, at `curl -s "wttr.in/${client_city}?format=3"`
 }
 function getStatus() {
     echo
