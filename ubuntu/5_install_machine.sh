@@ -2,6 +2,12 @@
 if [[ "$(whoami)" != "root" ]]; then
     SUDO=sudo
 fi
+export DEBIAN_FRONTEND=noninteractive
+
+# monotoring
+${SUDO} apt update
+${SUDO} apt install htop iftop nmon glances -y
+${SUDO} apt install sshd ufw fail2ban -y
 
 # docker
 
