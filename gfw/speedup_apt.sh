@@ -20,6 +20,7 @@ echo "USTC延迟: $USTC_DELAY ms"
 echo "Aliyun延迟: $ALIYUN_DELAY ms"
 
 # 比较延迟并选择更低的一个
+ensure_command_installed bc
 if (( $(echo "$USTC_DELAY < $ALIYUN_DELAY" |bc -l) )); then
   echo "选择USTC镜像"
   ${SUDO} sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list

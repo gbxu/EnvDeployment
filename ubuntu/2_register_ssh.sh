@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 THIS_PATH=$(readlink -f "$0")
 THIS_DIR=$(dirname "$THIS_PATH")
 MY_ENV_DEPLOYMENT=${THIS_DIR}/../../EnvDeployment
@@ -31,6 +32,7 @@ chmod 700 ${HOME}/.ssh
 chmod 600 ${HOME}/.ssh/authorized_keys
 chmod 644 ${HOME}/.ssh/id_rsa.pub
 
+# 复制私钥
 if [ ! -f "${HOME}/.ssh/id_rsa" ]; then
     cp ${MY_ENV_DEPLOYMENT}/privatedata/.ssh/id_rsa ${HOME}/.ssh/
 fi

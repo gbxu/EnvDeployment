@@ -3,9 +3,11 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 
 function dockerrun() {
-    device_list=$(ls /dev/infiniband/)
+    IFS=$'\n'
+    device_list=($(ls /dev/infiniband/))
+    unset IFS
     device_params=""
-    for device in $device_list; do
+    for device in "${device_list[@]}"; do
         device_path="/dev/infiniband/$device"
         device_params+="--device $device_path "
     done
@@ -36,7 +38,7 @@ function dockerrun() {
         --runtime=nvidia \
         -e NVIDIA_VISIBLE_DEVICES=all \
         --rm --name=${USER}_instance \
-        \"$1\" /bin/bash"
+        $@ /bin/bash"
 
     echo "Running command: $docker_run_command"
     eval $docker_run_command
