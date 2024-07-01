@@ -106,5 +106,13 @@ function ensure_command_installed() {
   fi
 }
 
+function projectgit() {
+    if [ ! -f "${MY_ENV_DEPLOYMENT}/privatedata/.ssh/id_rsa" ]; then
+        echo "no ${MY_ENV_DEPLOYMENT}/privatedata/.ssh/id_rsa."
+    else
+        GIT_SSH_COMMAND="ssh -i ${MY_ENV_DEPLOYMENT}/privatedata/.ssh/id_rsa" git $@
+    fi
+}
+
 alias open='vscode_in_tmux'
 echo ".my_aliases reloaded."
