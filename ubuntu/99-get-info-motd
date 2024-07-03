@@ -302,6 +302,7 @@ function getDetails() {
     dmidecode -t memory
     lscpu
     lspci -vv
+    lstopo
     nvidia-smi topo -m
     nvidia-smi
     ethtool eth0
