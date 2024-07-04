@@ -1,3 +1,4 @@
+# wget https://raw.githubusercontent.com/gbxu/EnvDeployment/master/utils/notify.py
 # python3 notify.py --sender sender@example.com --code xxx --recver receiver@example.com --msg "done"
 
 import os
