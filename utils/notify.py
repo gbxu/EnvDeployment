@@ -19,17 +19,26 @@ def send(sender, code, recver, title, msg, file):
         email['To'] = formataddr(["EndUser", recver])
         email['Subject'] = title
 
-        server = smtplib.SMTP_SSL("smtp.qq.com", 465)
+        if sender.endswith('@outlook.com'):
+            server = smtplib.SMTP("smtp-mail.outlook.com", 587)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+        elif sender.endswith('@qq.com'):
+            server = smtplib.SMTP_SSL("smtp.qq.com", 465)
+            server.ehlo()
+        else:
+            raise ValueError("Unsupported email service")
+
         server.login(sender, code)
         server.sendmail(sender, [recver, ], email.as_string())
         server.quit()
-    except Exception:
+    except Exception as e:
         ret = False
+        print('fail to send out email', e)
 
     if ret:
         print('successfully send out emails')
-    else:
-        print('fail to send out email')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='email')
