@@ -1,4 +1,4 @@
-# python3 email.py --sender sender@example.com --code xxx --recver receiver@example.com --msg "done"
+# python3 notify.py --sender sender@example.com --code xxx --recver receiver@example.com --msg "done"
 
 import os
 import smtplib
