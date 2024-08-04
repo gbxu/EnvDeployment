@@ -1,0 +1,1 @@
+ls /opt/nvidia/entrypoint.d

@@ -408,7 +408,7 @@ function getHelper() {
         bash ${THIS_FILE} export # to save details.
         bash ${THIS_FILE} benchmark # to simple benchmark test.
         bash ${THIS_FILE} cudabenchmark # run bandwidthTest p2pBandwidthLatencyTest batchCUBLAS for CUDA GPU.
-        Move it as /etc/etc/update-motd.d/99-get-info-motd then 'chmod +x 99-get-info-motd' to get a daily reminder.
+        Move it as /etc/update-motd.d/99-get-info-motd then 'chmod +x 99-get-info-motd' to get a daily reminder.
         "
 }
 
