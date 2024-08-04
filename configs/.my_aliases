@@ -3,6 +3,13 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 
 function dockerrun() {
+    # example: dockerrun -v $HOME:/workspace nvcr.io/nvidia/pytorch:23.08-py3
+
+    # 获取前面的参数
+    front_params=("${@:1:$(( $# - 1))}")
+    # 获取最后一个参数
+    last_param="${@: -1}"
+
     IFS=$'\n'
     device_list=($(ls /dev/infiniband/))
     unset IFS
@@ -21,7 +28,7 @@ function dockerrun() {
     if [ -z "${MY_ENV_DEPLOYMENT}" ]; then
         DeploymentFiles=""
     else
-        DeploymentFiles="-v ${MY_ENV_DEPLOYMENT}/:${MY_ENV_DEPLOYMENT}"
+        DeploymentFiles="-v ${MY_ENV_DEPLOYMENT}/:/EnvDeployment"
     fi
 
     if [ ! -z "$DISPLAY" ]; then
@@ -43,7 +50,7 @@ function dockerrun() {
         --runtime=nvidia \
         -e NVIDIA_VISIBLE_DEVICES=all \
         --rm --name=${USER}_instance \
-        $@ /bin/bash"
+        ${front_params[@]} ${last_param} /bin/bash"
 
     echo "Running command: $docker_run_command"
     eval $docker_run_command
@@ -54,7 +61,7 @@ function dockerin() {
 }
 
 function dockerssh() {
-    docker exec -it ${USER}_instance /bin/bash -c "/EnvDeployment/ubuntu/install_ssh.sh"
+    docker exec -it ${USER}_instance /bin/bash -c "/EnvDeployment/ubuntu/3_install_sshd_run.sh"
 }
 
 function vscode_in_tmux() {
