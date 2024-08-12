@@ -1,3 +1,6 @@
+THIS_PATH=$(readlink -f "$0")
+THIS_DIR=$(dirname "$THIS_PATH")
+
 if [[ "$(whoami)" != "root" ]]; then
     SUDO=sudo
 fi
@@ -122,4 +125,4 @@ function projectgit() {
 }
 
 alias open='vscode_in_tmux'
-echo ".my_aliases reloaded."
+echo "${THIS_PATH} reloaded."

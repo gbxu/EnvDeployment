@@ -1,3 +1,6 @@
+ZSHRC_PATH=$(readlink -f "${(%):-%x}")
+ZSHRC_DIR=$(dirname "$ZSHRC_PATH")
+
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
@@ -9,7 +12,11 @@ export ZSH="${MY_ENV_DEPLOYMENT}/download/.oh-my-zsh"
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
 ZSH_THEME="agnoster"
-
+export HISTFILE="${MY_ENV_DEPLOYMENT}/download/.zsh_history"
+# 设置内存中保存的历史记录条数
+export HISTSIZE=50000
+# 设置保存到历史记录文件中的条数
+export SAVEHIST=10000
 # Set list of themes to pick from when loading at random
 # Setting this variable when ZSH_THEME=random will cause zsh to load
 # a theme from this variable instead of looking in $ZSH/themes/
@@ -109,4 +116,4 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 source ${MY_ENV_DEPLOYMENT}/configs/.my_aliases
-echo "zsh config .zshrc reloaded."
+echo "${ZSHRC_PATH} reloaded."
