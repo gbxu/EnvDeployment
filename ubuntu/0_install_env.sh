@@ -4,7 +4,7 @@ THIS_DIR=$(dirname "$THIS_PATH")
 MY_ENV_DEPLOYMENT=${THIS_DIR}/../../EnvDeployment
 source ${MY_ENV_DEPLOYMENT}/configs/.my_aliases
 echo "MY_ENV_DEPLOYMENT is located at: ${MY_ENV_DEPLOYMENT}"
-echo "Get sudo to install tmux and zsh, or just copy .zshrc .vimrc .tmux.conf .tmux.conf.local"
+echo "Get sudo to install tmux and zsh, or just copy: .zshrc .vimrc .tmux.conf .tmux.conf.local"
 if [[ "$(whoami)" != "root" ]]; then
     SUDO=sudo
 fi

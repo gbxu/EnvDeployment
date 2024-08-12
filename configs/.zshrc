@@ -1,3 +1,6 @@
+ZSHRC_PATH=$(readlink -f "${(%):-%x}")
+ZSHRC_DIR=$(dirname "$ZSHRC_PATH")
+
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
@@ -113,4 +116,4 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 source ${MY_ENV_DEPLOYMENT}/configs/.my_aliases
-echo "zsh config .zshrc reloaded."
+echo "${ZSHRC_PATH} reloaded."
