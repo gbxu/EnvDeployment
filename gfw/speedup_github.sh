@@ -9,6 +9,15 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 export DEBIAN_FRONTEND=noninteractive
 
+# 使用 ed 命令修改 /etc/resolv.conf 文件，最开始增加 8.8.8.8
+ensure_command_installed ed
+${SUDO} ed -s /etc/resolv.conf <<EOF
+0a
+nameserver 8.8.8.8
+.
+w
+q
+EOF
 
 # GitHub相关域名
 GITHUB_DOMAINS=(

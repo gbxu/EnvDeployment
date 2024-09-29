@@ -6,7 +6,7 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 
 function dockerrun() {
-    # example: dockerrun -v $HOME:/workspace nvcr.io/nvidia/pytorch:23.08-py3
+    # example: dockerrun -v $HOME:/workspace -p 30022:22 --rm nvcr.io/nvidia/pytorch:23.08-py3
 
     # 获取前面的参数
     front_params=("${@:1:$(( $# - 1))}")
@@ -52,7 +52,7 @@ function dockerrun() {
         -e DISPLAY=${DockerDisplay} ${X11Files} ${DeploymentFiles} \
         --runtime=nvidia \
         -e NVIDIA_VISIBLE_DEVICES=all \
-        --rm --name=${USER}_instance \
+        --name=${USER}_instance \
         ${front_params[@]} ${last_param} /bin/bash"
 
     echo "Running command: $docker_run_command"
