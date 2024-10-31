@@ -10,8 +10,10 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 export DEBIAN_FRONTEND=noninteractive
 
-${SUDO} apt update
-${SUDO} apt install git zsh tmux fzf command-not-found -y
+if [[ "$OSTYPE" != "darwin"* ]]; then
+  ${SUDO} apt update
+  ${SUDO} apt install git zsh tmux fzf command-not-found -y
+fi
 
 # chsh -s /usr/bin/zsh
 export ZSH="${MY_ENV_DEPLOYMENT}/download/.oh-my-zsh"
