@@ -6,12 +6,19 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 
 function dockerrun() {
-    # example: dockerrun -v $HOME:/workspace -p 30022:22 --rm nvcr.io/nvidia/pytorch:23.08-py3
-
-    # 获取前面的参数
-    front_params=("${@:1:$(( $# - 1))}")
-    # 获取最后一个参数
-    last_param="${@: -1}"
+    # example: INSTANCE=test dockerrun -v $HOME:/workspace --rm nvcr.io/nvidia/pytorch:23.08-py3
+    # mapping hostport:containerport like: "-p 30022:22" will fail in host network mode
+    if [ -z "$INSTANCE" ]; then
+        echo "INSTANCE is not set, using ${USER}_instance."
+        INSTANCE="${USER}_instance"
+    fi
+    if [ -z "$IMAGE" ]; then
+        front_params=("${@:1:$(( $# - 1))}")
+        echo "IMAGE is not set, using ${@: -1}."
+        IMAGE="${@: -1}"
+    else
+        front_params=("$@")
+    fi
 
     IFS=$'\n'
     device_list=($(ls /dev/infiniband/))
@@ -52,35 +59,75 @@ function dockerrun() {
         -e DISPLAY=${DockerDisplay} ${X11Files} ${DeploymentFiles} \
         --runtime=nvidia \
         -e NVIDIA_VISIBLE_DEVICES=all \
-        --name=${USER}_instance \
-        ${front_params[@]} ${last_param} /bin/bash"
+        --name=${INSTANCE} \
+        -d \
+        -h docker-`hostname` \
+        ${front_params[@]} ${IMAGE} bash -c '/usr/sbin/sshd -p 12445 -D; sleep infinity'"
 
-    echo "Running command: $docker_run_command"
-    eval $docker_run_command
+    if [ "$(docker ps -aq -f name=${INSTANCE})" ]; then
+        if [ "$(docker ps -q -f name=${INSTANCE})" ]; then
+            echo "Container ${INSTANCE} is already running."
+        else
+            echo "Starting container ${INSTANCE}."
+            docker start ${INSTANCE}
+        fi
+    else
+        echo "Running command: $docker_run_command"
+        eval $docker_run_command
+    fi
+
+
+    echo "Check your sshd by: "
+    echo "  docker exec -it ${INSTANCE} /bin/bash -c 'ssh -o StrictHostKeyChecking=no -p 12445 localhost ls /'"
+    echo "If it is not working, enter the instance, then:"
+    echo "  Install: apt update; apt install ssh -y"
+    echo "  Restart: service ssh start; service ssh stop; /usr/sbin/sshd -p 12445"
+    echo '  Use your old public/private key or generate a new pair: ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ""; cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys'
+    echo "  Register your public key to ~/.ssh/authorized_keys"
+    echo "  Check port in ~/.ssh/config and /etc/ssh/sshd_config"
+    echo -e "\n"
 }
 
 function dockerin() {
-    docker exec -it ${USER}_instance /bin/bash
+    if [ -z "$INSTANCE" ]; then
+        INSTANCE="${USER}_instance"
+    fi
+    docker exec -it ${INSTANCE} /bin/bash
 }
 
 function dockerssh() {
-    docker exec -it ${USER}_instance /bin/bash -c "/EnvDeployment/ubuntu/3_install_sshd_run.sh"
+    if [ -z "$INSTANCE" ]; then
+        INSTANCE="${USER}_instance"
+    fi
+    docker exec -it ${INSTANCE} /bin/bash -c "/EnvDeployment/ubuntu/3_install_sshd_run.sh"
 }
 
 function vscode_in_tmux() {
     local vscode_ipc=$(set | grep VSCODE_IPC_HOOK_CLI= | cut -d'=' -f2)
     local mycode=code
-    if [ -z "$t" ]; then
-        echo "VSCODE_IPC_HOOK_CLI is not set. You may in a VS Code terminal."
-        vscode_ipc=`ls -t1 /run/user/$UID/vscode-ipc-*.sock | head -n 1`
-        echo "Get VSCODE_IPC_HOOK_CLI=${vscode_ipc} from /run/user/${UID}"
+    if [ -z "$vscode_ipc" ]; then
+        echo "VSCODE_IPC_HOOK_CLI is not set. You may be in a VS Code terminal."
+        
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            vscode_ipc=$(ls -t1 /tmp/vscode-ipc-*.sock | head -n 1)
+            echo "Get VSCODE_IPC_HOOK_CLI=${vscode_ipc} from /tmp"
+        else
+            vscode_ipc=$(ls -t1 /run/user/$UID/vscode-ipc-*.sock | head -n 1)
+            echo "Get VSCODE_IPC_HOOK_CLI=${vscode_ipc} from /run/user/${UID}"
+        fi
+        
         echo "Applying to all sessions..."
         export VSCODE_IPC_HOOK_CLI=$vscode_ipc
         local cmd="export VSCODE_IPC_HOOK_CLI=$vscode_ipc"
         for SESSION_NAME in $(tmux list-sessions -F '#{session_name}'); do
             execute_command_in_session "$SESSION_NAME" "$cmd"
         done
-        mycode=${HOME}/.vscode-server/bin/$(ls -t1 ${HOME}/.vscode-server/bin/ | head -n 1)/bin/remote-cli/code
+        
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            mycode="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+        else
+            mycode=${HOME}/.vscode-server/bin/$(ls -t1 ${HOME}/.vscode-server/bin/ | head -n 1)/bin/remote-cli/code
+        fi
     fi
     $mycode $1
 }
@@ -124,5 +171,5 @@ function projectgit() {
     fi
 }
 
-alias open='vscode_in_tmux'
+alias vscode='vscode_in_tmux'
 echo "${THIS_PATH} reloaded."

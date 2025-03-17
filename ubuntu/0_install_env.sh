@@ -13,6 +13,7 @@ export DEBIAN_FRONTEND=noninteractive
 if [[ "$OSTYPE" != "darwin"* ]]; then
   ${SUDO} apt update
   ${SUDO} apt install git zsh tmux fzf command-not-found -y
+  ${SUDO} apt install -y language-pack-en && update-locale
 fi
 
 # chsh -s /usr/bin/zsh
