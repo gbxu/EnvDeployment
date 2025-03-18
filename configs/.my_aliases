@@ -9,10 +9,10 @@ function dockerrun() {
     # example: INSTANCE=test dockerrun -v $HOME:/workspace --rm nvcr.io/nvidia/pytorch:23.08-py3
     # mapping hostport:containerport like: "-p 30022:22" will fail in host network mode
     if [ -z "$INSTANCE" ]; then
-        echo "INSTANCE is not set, using ${USER}_instance."
-        INSTANCE="${USER}_instance"
+        INSTANCE="${USER}-job"
+        echo "INSTANCE is not set, using ${INSTANCE}"
     else
-        echo "INSTANCE is set to $INSTANCE."
+        echo "INSTANCE is set to ${INSTANCE}"
     fi
     if [ -z "$IMAGE" ]; then
         front_params=("${@:1:$(( $# - 1))}")
@@ -64,7 +64,7 @@ function dockerrun() {
         -e NVIDIA_VISIBLE_DEVICES=all \
         --name=${INSTANCE} \
         -d \
-        -h `hostname`[${INSTANCE}] \
+        -h `hostname`-${INSTANCE} \
         ${front_params[@]} ${IMAGE} /bin/bash -c '/usr/sbin/sshd -p 12445 -D; sleep infinity'"
 
     if [ "$(docker ps -aq -f name=${INSTANCE})" ]; then
@@ -95,52 +95,83 @@ function dockerrun() {
 
 function dockerin() {
     if [ -z "$INSTANCE" ]; then
-        INSTANCE="${USER}_instance"
-        echo "INSTANCE is not set, using ${USER}_instance."
+        INSTANCE="${USER}-job"
+        echo "INSTANCE is not set, using ${INSTANCE}"
     else
-        echo "INSTANCE is set to $INSTANCE."
+        echo "INSTANCE is set to ${INSTANCE}"
     fi
     docker exec -it ${INSTANCE} /bin/bash
 }
 
 function dockerssh() {
     if [ -z "$INSTANCE" ]; then
-        INSTANCE="${USER}_instance"
-        echo "INSTANCE is not set, using ${USER}_instance."
+        INSTANCE="${USER}-job"
+        echo "INSTANCE is not set, using ${INSTANCE}"
     else
-        echo "INSTANCE is set to $INSTANCE."
+        echo "INSTANCE is set to ${INSTANCE}"
     fi
     docker exec -it ${INSTANCE} /bin/bash -c "/EnvDeployment/ubuntu/3_install_sshd_run.sh"
 }
 
-function vscode_in_tmux() {
-    local vscode_ipc=$(set | grep VSCODE_IPC_HOOK_CLI= | cut -d'=' -f2)
-    local mycode=code
-    if [ -z "$vscode_ipc" ]; then
-        echo "VSCODE_IPC_HOOK_CLI is not set. You may be in a VS Code terminal."
-        
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            vscode_ipc=$(ls -t1 /tmp/vscode-ipc-*.sock | head -n 1)
-            echo "Get VSCODE_IPC_HOOK_CLI=${vscode_ipc} from /tmp"
-        else
-            vscode_ipc=$(ls -t1 /run/user/$UID/vscode-ipc-*.sock | head -n 1)
-            echo "Get VSCODE_IPC_HOOK_CLI=${vscode_ipc} from /run/user/${UID}"
+function code_even_tmux() {
+    if [[ "$OSTYPE" =~ ^darwin ]]; then
+        echo "in macOS"
+        local cursor="/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
+        local code="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+        if [ -n "$cursor" ]; then
+            echo $cursor
         fi
-        
-        echo "Applying to all sessions..."
-        export VSCODE_IPC_HOOK_CLI=$vscode_ipc
-        local cmd="export VSCODE_IPC_HOOK_CLI=$vscode_ipc"
-        for SESSION_NAME in $(tmux list-sessions -F '#{session_name}'); do
-            execute_command_in_session "$SESSION_NAME" "$cmd"
-        done
-        
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            mycode="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
-        else
-            mycode=${HOME}/.vscode-server/bin/$(ls -t1 ${HOME}/.vscode-server/bin/ | head -n 1)/bin/remote-cli/code
+        if [ -n "$code" ]; then
+            echo $code
+        fi
+    else
+        echo "in remote server"
+        local cursor=${HOME}/.cursor-server/cli/servers/$(ls -t1 ${HOME}/.cursor-server/cli/servers/ | head -n 1)/server/bin/remote-cli/cursor
+        local code=${HOME}/.vscode-server/cli/servers/$(ls -t1 ${HOME}/.vscode-server/cli/servers/ | head -n 1)/server/bin/remote-cli/code
+        if [ -n "$cursor" ]; then
+            echo $cursor
+        fi
+        if [ -n "$code" ]; then
+            echo $code
         fi
     fi
-    $mycode $1
+
+    if [ -n "$TMUX" ]; then
+        echo "in tmux"
+        local vscode_tmux_ipc=$(set | grep VSCODE_IPC_HOOK_CLI= | cut -d'=' -f2)
+        if [ -z "$vscode_tmux_ipc" ]; then
+            echo "VSCODE_IPC_HOOK_CLI is not set. You may be in a VS Code terminal."
+            
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                vscode_tmux_ipc=$(ls -t1 /tmp/vscode-ipc-*.sock | head -n 1)
+                echo "Get VSCODE_IPC_HOOK_CLI=${vscode_tmux_ipc} from /tmp"
+            else
+                vscode_tmux_ipc=$(ls -t1 /run/user/$UID/vscode-ipc-*.sock | head -n 1)
+                echo "Get VSCODE_IPC_HOOK_CLI=${vscode_tmux_ipc} from /run/user/${UID}"
+            fi
+            
+            echo "Applying to all sessions..."
+            export VSCODE_IPC_HOOK_CLI=$vscode_tmux_ipc
+            local cmd="export VSCODE_IPC_HOOK_CLI=$vscode_tmux_ipc"
+            for SESSION_NAME in $(tmux list-sessions -F '#{session_name}'); do
+                execute_command_in_session "$SESSION_NAME" "$cmd"
+            done        
+        fi
+    fi
+
+    if [ "$1" = "prefer_code" ] && [ -n "$code" ]; then
+        $code $2
+    elif [ "$1" = "prefer_cursor" ] || [ -n "$cursor" ]; then
+        $cursor $2
+    else
+        if [ -n "$cursor" ]; then
+            $cursor $2
+        elif [ -n "$code" ]; then
+            $code $2
+        else
+            echo "No cursor or code found."
+        fi
+    fi
 }
 
 function execute_command_in_session() {
@@ -182,5 +213,6 @@ function projectgit() {
     fi
 }
 
-alias vscode='vscode_in_tmux'
+alias code='code_even_tmux prefer_code'
+alias cursor='code_even_tmux prefer_cursor'
 echo "${THIS_PATH} reloaded."
