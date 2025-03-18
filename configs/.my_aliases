@@ -9,7 +9,7 @@ function dockerrun() {
     # example: INSTANCE=test dockerrun -v $HOME:/workspace --rm nvcr.io/nvidia/pytorch:23.08-py3
     # mapping hostport:containerport like: "-p 30022:22" will fail in host network mode
     if [ -z "$INSTANCE" ]; then
-        INSTANCE="${USER}-job"
+        INSTANCE="${USER}_instance"
         echo "INSTANCE is not set, using ${INSTANCE}"
     else
         echo "INSTANCE is set to ${INSTANCE}"
@@ -39,6 +39,7 @@ function dockerrun() {
     fi
 
     if [ -z "${MY_ENV_DEPLOYMENT}" ]; then
+        echo "MY_ENV_DEPLOYMENT is not set."
         DeploymentFiles=""
     else
         DeploymentFiles="-v ${MY_ENV_DEPLOYMENT}/:/EnvDeployment"
@@ -64,9 +65,11 @@ function dockerrun() {
         -e NVIDIA_VISIBLE_DEVICES=all \
         --name=${INSTANCE} \
         -d \
-        -h `hostname`-${INSTANCE} \
+        -h `hostname`-job \
         ${front_params[@]} ${IMAGE} /bin/bash -c '/usr/sbin/sshd -p 12445 -D; sleep infinity'"
 
+
+    echo "Running command: $docker_run_command"
     if [ "$(docker ps -aq -f name=${INSTANCE})" ]; then
         if [ "$(docker ps -q -f name=${INSTANCE})" ]; then
             echo "Container ${INSTANCE} is already running."
@@ -75,7 +78,6 @@ function dockerrun() {
             docker start ${INSTANCE}
         fi
     else
-        echo "Running command: $docker_run_command"
         eval $docker_run_command
     fi
 
@@ -94,23 +96,31 @@ function dockerrun() {
 }
 
 function dockerin() {
-    if [ -z "$INSTANCE" ]; then
-        INSTANCE="${USER}-job"
-        echo "INSTANCE is not set, using ${INSTANCE}"
-    else
+    if [ -n "$INSTANCE" ]; then
         echo "INSTANCE is set to ${INSTANCE}"
+    elif [ -n "$1" ]; then
+        INSTANCE="$1"
+        echo "INSTANCE is set to ${INSTANCE}"
+    else
+        INSTANCE="${USER}_instance"
+        echo "INSTANCE is not set, using ${INSTANCE}"
     fi
     docker exec -it ${INSTANCE} /bin/bash
+    unset INSTANCE
 }
 
 function dockerssh() {
-    if [ -z "$INSTANCE" ]; then
-        INSTANCE="${USER}-job"
-        echo "INSTANCE is not set, using ${INSTANCE}"
-    else
+    if [ -n "$INSTANCE" ]; then
         echo "INSTANCE is set to ${INSTANCE}"
+    elif [ -n "$1" ]; then
+        INSTANCE="$1"
+        echo "INSTANCE is set to ${INSTANCE}"
+    else
+        INSTANCE="${USER}_instance"
+        echo "INSTANCE is not set, using ${INSTANCE}"
     fi
     docker exec -it ${INSTANCE} /bin/bash -c "/EnvDeployment/ubuntu/3_install_sshd_run.sh"
+    unset INSTANCE
 }
 
 function code_even_tmux() {
