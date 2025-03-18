@@ -64,7 +64,7 @@ function dockerrun() {
         -e NVIDIA_VISIBLE_DEVICES=all \
         --name=${INSTANCE} \
         -d \
-        -h docker-`hostname` \
+        -h `hostname`[${INSTANCE}] \
         ${front_params[@]} ${IMAGE} /bin/bash -c '/usr/sbin/sshd -p 12445 -D; sleep infinity'"
 
     if [ "$(docker ps -aq -f name=${INSTANCE})" ]; then
