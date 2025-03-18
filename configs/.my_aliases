@@ -11,12 +11,15 @@ function dockerrun() {
     if [ -z "$INSTANCE" ]; then
         echo "INSTANCE is not set, using ${USER}_instance."
         INSTANCE="${USER}_instance"
+    else
+        echo "INSTANCE is set to $INSTANCE."
     fi
     if [ -z "$IMAGE" ]; then
         front_params=("${@:1:$(( $# - 1))}")
         echo "IMAGE is not set, using ${@: -1}."
         IMAGE="${@: -1}"
     else
+        echo "IMAGE is set to $IMAGE."
         front_params=("$@")
     fi
 
@@ -62,7 +65,7 @@ function dockerrun() {
         --name=${INSTANCE} \
         -d \
         -h docker-`hostname` \
-        ${front_params[@]} ${IMAGE} bash -c '/usr/sbin/sshd -p 12445 -D; sleep infinity'"
+        ${front_params[@]} ${IMAGE} /bin/bash -c '/usr/sbin/sshd -p 12445 -D; sleep infinity'"
 
     if [ "$(docker ps -aq -f name=${INSTANCE})" ]; then
         if [ "$(docker ps -q -f name=${INSTANCE})" ]; then
@@ -86,11 +89,16 @@ function dockerrun() {
     echo "  Register your public key to ~/.ssh/authorized_keys"
     echo "  Check port in ~/.ssh/config and /etc/ssh/sshd_config"
     echo -e "\n"
+    unset INSTANCE
+    unset IMAGE
 }
 
 function dockerin() {
     if [ -z "$INSTANCE" ]; then
         INSTANCE="${USER}_instance"
+        echo "INSTANCE is not set, using ${USER}_instance."
+    else
+        echo "INSTANCE is set to $INSTANCE."
     fi
     docker exec -it ${INSTANCE} /bin/bash
 }
@@ -98,6 +106,9 @@ function dockerin() {
 function dockerssh() {
     if [ -z "$INSTANCE" ]; then
         INSTANCE="${USER}_instance"
+        echo "INSTANCE is not set, using ${USER}_instance."
+    else
+        echo "INSTANCE is set to $INSTANCE."
     fi
     docker exec -it ${INSTANCE} /bin/bash -c "/EnvDeployment/ubuntu/3_install_sshd_run.sh"
 }
