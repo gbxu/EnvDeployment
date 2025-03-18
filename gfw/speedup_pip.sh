@@ -27,6 +27,11 @@ timeout = 6000\n\
 index-url = https://pypi.tuna.tsinghua.edu.cn/simple\n\
 [install]\n\
 trusted-host = pypi.tuna.tsinghua.edu.cn\n" > ~/.pip/pip.conf
+  echo -e "[global]\n\
+timeout = 6000\n\
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple\n\
+[install]\n\
+trusted-host = pypi.tuna.tsinghua.edu.cn\n" > /usr/pip.conf
 else
   echo "选择Aliyun镜像"
   echo -e "[global]\n\
@@ -34,4 +39,9 @@ timeout = 6000\n\
 index-url = https://mirrors.aliyun.com/pypi/simple\n\
 [install]\n\
 trusted-host = mirrors.aliyun.com\n" > ~/.pip/pip.conf
+  echo -e "[global]\n\
+timeout = 6000\n\
+index-url = https://mirrors.aliyun.com/pypi/simple\n\
+[install]\n\
+trusted-host = mirrors.aliyun.com\n" > /usr/pip.conf
 fi
